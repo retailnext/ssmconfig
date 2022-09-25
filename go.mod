@@ -1,6 +1,6 @@
 module github.com/retailnext/ssmconfig
 
-go 1.12
+go 1.19
 
 require (
 	github.com/aws/aws-sdk-go-v2 v0.9.0
