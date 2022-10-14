@@ -1,4 +1,4 @@
-// Copyright 2019 RetailNext, Inc.
+// Copyright 2022 RetailNext, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
 package ssmconfig
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws/defaults"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
@@ -28,6 +29,10 @@ type hasTags struct {
 
 func TestNewRequest(t *testing.T) {
 	var v hasTags
-	client := ssm.New(defaults.Config())
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := ssm.NewFromConfig(cfg)
 	_ = NewRequest(&v, "/HasTags", client)
 }

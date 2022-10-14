@@ -1,4 +1,4 @@
-// Copyright 2019 RetailNext, Inc.
+// Copyright 2022 RetailNext, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/aws/aws-sdk-go-v2/service/ssm/ssmiface"
 )
 
 type Request interface {
@@ -37,7 +36,7 @@ func (e MissingParameters) Error() string {
 	return fmt.Sprintf("missing ssm parameters: %+v", []string(e))
 }
 
-func NewRequest(configurable interface{}, path string, client ssmiface.ClientAPI) Request {
+func NewRequest(configurable interface{}, path string, client ssm.GetParametersByPathAPIClient) Request {
 	path = "/" + strings.Trim(path, "/")
 
 	input := ssm.GetParametersByPathInput{
@@ -54,7 +53,7 @@ func NewRequest(configurable interface{}, path string, client ssmiface.ClientAPI
 	r := request{
 		missing:   make(map[string]struct{}, v.NumField()),
 		setters:   make(map[string][]func(string), v.NumField()),
-		paginator: ssm.NewGetParametersByPathPaginator(client.GetParametersByPathRequest(&input)),
+		paginator: ssm.NewGetParametersByPathPaginator(client, &input),
 	}
 
 	for i := 0; i < v.NumField(); i++ {
@@ -94,7 +93,7 @@ type request struct {
 	done      bool
 	missing   map[string]struct{}
 	setters   map[string][]func(string)
-	paginator ssm.GetParametersByPathPaginator
+	paginator *ssm.GetParametersByPathPaginator
 }
 
 func (r *request) Send(ctx context.Context) error {
@@ -106,18 +105,17 @@ func (r *request) Send(ctx context.Context) error {
 		panic("request executed more than once")
 	}
 
-	for r.paginator.Next(ctx) {
-		page := r.paginator.CurrentPage()
+	for r.paginator.HasMorePages() {
+		page, err := r.paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
 		for _, parameter := range page.Parameters {
 			for _, setter := range r.setters[*parameter.Name] {
 				setter(*parameter.Value)
 			}
 			delete(r.missing, *parameter.Name)
 		}
-	}
-
-	if err := r.paginator.Err(); err != nil {
-		return err
 	}
 
 	if len(r.missing) > 0 {
